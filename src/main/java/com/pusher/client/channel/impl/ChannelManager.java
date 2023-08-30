@@ -128,12 +128,14 @@ public class ChannelManager implements ConnectionEventListener {
     /* implementation detail */
 
     private void sendOrQueueSubscribeMessage(final InternalChannel channel) {
-        factory.queueOnEventThread(() -> {
+        factory.queueOnAuthenticationThread(() -> {
             if (connection.getState() == ConnectionState.CONNECTED) {
                 try {
                     final String message = channel.toSubscribeMessage();
-                    connection.sendMessage(message);
-                    channel.updateState(ChannelState.SUBSCRIBE_SENT);
+                    factory.queueOnEventThread(() -> {
+                        connection.sendMessage(message);
+                        channel.updateState(ChannelState.SUBSCRIBE_SENT);
+                    });
                 } catch (final AuthorizationFailureException e) {
                     handleAuthenticationFailure(channel, e);
                 }

@@ -49,6 +49,7 @@ public class Factory {
     private InternalConnection connection;
     private ChannelManager channelManager;
     private ExecutorService eventQueue;
+    private ExecutorService authenticationQueue;
     private ScheduledExecutorService timers;
     private static final Object eventLock = new Object();
 
@@ -140,6 +141,13 @@ public class Factory {
                 r.run();
             }
         });
+    }
+
+    public synchronized  void queueOnAuthenticationThread(final Runnable r) {
+        if (authenticationQueue == null) {
+            authenticationQueue = Executors.newCachedThreadPool(new DaemonThreadFactory("authenticationQueue"));
+        }
+        authenticationQueue.execute(r);
     }
 
     public synchronized void shutdownThreads() {
