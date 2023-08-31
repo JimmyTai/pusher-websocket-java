@@ -19,6 +19,8 @@ import com.pusher.client.user.impl.InternalUser;
 import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -49,7 +51,8 @@ public class Factory {
     private InternalConnection connection;
     private ChannelManager channelManager;
     private ExecutorService eventQueue;
-    private ExecutorService authenticationQueue;
+    private final Map<String, Object> channelOperationLocks = new ConcurrentHashMap<>();
+    private ExecutorService channelOperationQueue;
     private ScheduledExecutorService timers;
     private static final Object eventLock = new Object();
 
@@ -143,11 +146,16 @@ public class Factory {
         });
     }
 
-    public synchronized  void queueOnAuthenticationThread(final Runnable r) {
-        if (authenticationQueue == null) {
-            authenticationQueue = Executors.newCachedThreadPool(new DaemonThreadFactory("authenticationQueue"));
+    public synchronized void queueOnChannelOperationThread(String channelName, final Runnable r) {
+        if (channelOperationQueue == null) {
+            channelOperationQueue = Executors.newCachedThreadPool(new DaemonThreadFactory("channelOperationQueue"));
         }
-        authenticationQueue.execute(r);
+        final Object lock = channelOperationLocks.computeIfAbsent(channelName, k -> new Object());
+        channelOperationQueue.execute(() -> {
+            synchronized (lock) {
+                r.run();
+            }
+        });
     }
 
     public synchronized void shutdownThreads() {
